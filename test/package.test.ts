@@ -1,6 +1,9 @@
 import got from 'got';
 import { Server } from 'http';
 import { createApp } from '../src/app';
+import { CycleMock, mockData } from './mock';
+import { NPMPackage } from '../src/types';
+import { getDependencies } from '../src/package';
 
 describe('/package/:name/:version endpoint', () => {
   let server: Server;
@@ -37,42 +40,30 @@ describe('/package/:name/:version endpoint', () => {
     expect(res.statusCode).toEqual(200);
     expect(json.name).toEqual(packageName);
     expect(json.version).toEqual(packageVersion);
-    expect(json.dependencies).toEqual({
-      'loose-envify': {
-        version: '1.4.0',
-        dependencies: {
-          'js-tokens': {
-            version: '4.0.0',
-            dependencies: {},
-          },
+    expect(json.dependencies).toEqual(mockData);
+  });
+
+  it('handles cycles', async () => {
+    const name = 'loose-envify';
+    const version = '1.4.0';
+    const mockGot = got as jest.MockedFunction<typeof got>;
+    mockGot.mockResolvedValue({
+      name: 'loose-envify',
+      'dist-tags': {},
+      description: '',
+      versions: {
+        '1.4.0': {
+          name: 'loose-envify',
+          version: '1.4.0',
+          dependencies: {},
         },
       },
-      'object-assign': {
-        version: '4.1.1',
-        dependencies: {},
-      },
-      'prop-types': {
-        version: '15.8.0',
-        dependencies: {
-          'object-assign': {
-            version: '4.1.1',
-            dependencies: {},
-          },
-          'loose-envify': {
-            version: '1.4.0',
-            dependencies: {
-              'js-tokens': {
-                version: '4.0.0',
-                dependencies: {},
-              },
-            },
-          },
-          'react-is': {
-            version: '16.13.1',
-            dependencies: {},
-          },
-        },
-      },
-    });
+    } as NPMPackage);
+    const seen = new Set<string>();
+    seen.add(`${name}_${version}`);
+    const dependencies = await getDependencies(name, version, seen);
+    expect(dependencies).toEqual(CycleMock);
+
+    jest.clearAllMocks();
   });
 });

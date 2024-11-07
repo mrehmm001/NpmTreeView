@@ -39,3 +39,19 @@ export interface NPMPackage {
     };
   };
 }
+
+/**
+ * Body of a package
+ *
+ * @example
+ * {
+ *   "version":1.0.0,
+ *    "dependencies":{}
+ * }
+ */
+export type Package = {
+  version: string;
+  dependencies: Record<string, Package>;
+};
+
+export type DependencyTree = Record<string, Package>;
