@@ -57,11 +57,16 @@ export async function getDependencies(
   const npmPackage: NPMPackage = await got(
     `https://registry.npmjs.org/${name}`,
   ).json();
-
   const v = maxSatisfying(Object.keys(npmPackage.versions), range);
   const dependencies: DependencyTree = {};
 
   const cacheKey = `${name}_${v}`;
+
+  if (cacheKey in getDependenciesCache) {
+    console.log(`Cache hit ${cacheKey}`);
+    return getDependenciesCache[cacheKey];
+  }
+
   if (seen.has(cacheKey)) {
     console.log('Cycle detected');
     return { version: v ?? range, dependencies };
@@ -76,5 +81,7 @@ export async function getDependencies(
     }
   }
 
-  return { version: v ?? range, dependencies };
+  const result = { version: v ?? range, dependencies };
+  getDependenciesCache[cacheKey] = result;
+  return result;
 }
