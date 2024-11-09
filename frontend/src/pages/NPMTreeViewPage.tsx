@@ -26,62 +26,59 @@ export function NPMTreeViewPage () {
         navigate(`/npm-tree-view/${packageName}/${version}`);
     };
 
-    const constructTree = useMemo(() => {
-        return (packageName: string, dependencyTree: Record<string, Package>, edges: Edge[]=[], nodes: Node[]=[]) => {
-            const dependencyNames = Object.keys(dependencyTree);
+    const constructTree = useCallback((packageName: string, dependencyTree: Record<string, Package>, edges: Edge[]=[], nodes: Node[]=[]) => {
+        const dependencyNames = Object.keys(dependencyTree);
+        
+        // Calculate total width needed for all children
+        const getSubtreeWidth = (deps: Record<string, Package>): number => {
+            const children = Object.keys(deps);
+            if (children.length === 0) return HORIZONTAL_SPACING;
+            return children.reduce((sum, child) => 
+                sum + getSubtreeWidth(deps[child].dependencies), 0);
+        };
+
+        // Calculate starting X position to center parent above children
+        const totalWidth = getSubtreeWidth(dependencyTree);
+        const parentNode = nodes.find(node => node.id === packageName);
+        const parentY = parentNode ? parentNode.position.y : 0;
+        const parentX = parentNode ? parentNode.position.x : 0;
+        
+        let currentX = parentX - (totalWidth / 2) + (HORIZONTAL_SPACING / 2);
+
+        dependencyNames.forEach((name) => {
+            const {dependencies, version} = dependencyTree[name];
+            const uniqueId = `${packageName}-${name}`;
             
-            // Calculate total width needed for all children
-            const getSubtreeWidth = (deps: Record<string, Package>): number => {
-                const children = Object.keys(deps);
-                if (children.length === 0) return HORIZONTAL_SPACING;
-                return children.reduce((sum, child) => 
-                    sum + getSubtreeWidth(deps[child].dependencies), 0);
-            };
-
-            // Calculate starting X position to center parent above children
-            const totalWidth = getSubtreeWidth(dependencyTree);
-            const parentNode = nodes.find(node => node.id === packageName);
-            const parentY = parentNode ? parentNode.position.y : 0;
-            const parentX = parentNode ? parentNode.position.x : 0;
+            // Calculate width of current subtree
+            const subtreeWidth = getSubtreeWidth(dependencies);
             
-            let currentX = parentX - (totalWidth / 2) + (HORIZONTAL_SPACING / 2);
-
-            dependencyNames.forEach((name) => {
-                const {dependencies, version} = dependencyTree[name];
-                const uniqueId = `${packageName}-${name}`;
-                
-                // Calculate width of current subtree
-                const subtreeWidth = getSubtreeWidth(dependencies);
-                
-                // Position node centered above its own subtree
-                const nodeX = currentX + (subtreeWidth / 2) - (HORIZONTAL_SPACING / 2);
-                
-                nodes.push({
-                    id: uniqueId,
-                    data: { label: `${name}@${version}` },
-                    position: { 
-                        x: nodeX,
-                        y: parentY + VERTICAL_SPACING
-                    }
-                });
-
-                edges.push({
-                    id: `${packageName}-${uniqueId}`,
-                    source: packageName,
-                    target: uniqueId,
-                    animated: true,
-                });
-
-                // Recursively position children
-                constructTree(uniqueId, dependencies, edges, nodes);
-                
-                // Move currentX by the width of the current subtree
-                currentX += subtreeWidth;
+            // Position node centered above its own subtree
+            const nodeX = currentX + (subtreeWidth / 2) - (HORIZONTAL_SPACING / 2);
+            
+            nodes.push({
+                id: uniqueId,
+                data: { label: `${name}@${version}` },
+                position: { 
+                    x: nodeX,
+                    y: parentY + VERTICAL_SPACING
+                }
             });
 
-            return {edges, nodes};
-        };
-    }, [HORIZONTAL_SPACING, VERTICAL_SPACING]);
+            edges.push({
+                id: `${packageName}-${uniqueId}`,
+                source: packageName,
+                target: uniqueId,
+            });
+
+            // Recursively position children
+            constructTree(uniqueId, dependencies, edges, nodes);
+            
+            // Move currentX by the width of the current subtree
+            currentX += subtreeWidth;
+        });
+
+        return {edges, nodes};
+    }, []);
 
     useEffect(()=>{
         // add parent node
